@@ -1,32 +1,26 @@
 <div align="center">
 
-# Project Title
+# Slayer
 
-Project Description
+A simple, immediate-mode UI library
 
 </div>
 
 
 ## Overview
 
-Project details
-
-### Goals
-
-List main objectives, problems you aim to solve.
+Slayer is a simple, immediate-mode UI library that aims to replicate the functionality of CSS's box model, flexbox, and grid.
 
 ### Features
 
-- [x] Feature 1
-- [x] Feature 2
-- [ ] Feature 3
+- [ ] Box model
+- [ ] Flexbox
+- [ ] Grid
 
 ### Software Stack / Technologies Used
 
-- Language: ...
-- Framework: ...
-- Database: ...
-- etc...
+- Language: Python (initial implementation), Zig (final implementation), C (bindings planned), C++ (bindings planned)
+- Framework: Pygame (initial renderer), SDL3 (planned example renderer), SFML (may make renderer in the future), Raylib (planned example renderer)
 
 ## Quickstart
 
