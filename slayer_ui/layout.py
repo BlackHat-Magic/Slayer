@@ -1,6 +1,16 @@
 from dataclasses import dataclass
 from enum import auto, Enum
-from typing import Any
+from typing import Any, Callable
+
+class ContentType(Enum):
+    """
+    Type of content inside of a node
+    e.g., image, text, etc.
+    """
+
+    TEXT = auto()
+    IMAGE = auto()
+    SVG = auto()
 
 # ===== MEASUREMENT =====
 
@@ -30,7 +40,6 @@ class Display(Enum):
     Display: flex, grid, block, etc
     """
 
-    BLOCK = auto()
     FLEX = auto()
     GRID = auto()
 
@@ -114,6 +123,13 @@ class Style:
 		Measurement(Unit.PX, 0.0),	# bottom
 		Measurement(Unit.PX, 0.0),	# left
     ]
+    row_gap: Measurement = Measurement(Unit.PX, 0.0)
+    column_gap: Measurement = Measurement(Unit.PX, 0.0)
+
+    background_color: list[float] = [1.0, 1.0, 1.0, 1.0]	# rgba
+    border_color: list[float] = [0.0, 0.0, 0.0, 0.0]		# rgba
+    color: list[float] = [0.0, 0.0, 0.0, 1.0]				# rgba
+
     width: Measurement | None = None
     min_width: Measurement | None = None
     max_width: Measurement | None = None
@@ -150,6 +166,40 @@ class Node:
 			"h": None,
 		},
     }
+
+    def isLeaf(self) -> bool:
+        return len(self.children) == 0
+
+def getNodeLineSize(
+	node: Node,
+	direction: Direction,
+	getStringWidth: Callable[[str], float],
+	getImageWidth: Callable[[Image], float],
+	getSVGWidth: Callable[[str], float],
+) -> float:
+    """
+    Gets the size of a node in a line
+    	width for nodes in flex-direction=row or flex-direction=row-reverse
+    	height for nodes in flex-direction=column or flex-direction=column-reverse
+    """
+
+	if direction == Direction.ROW or direction == Direction.ROW_REVERSE:
+	    if node.isLeaf():
+	        content_width = 0
+	        if node.content_type == ContentType.STRING:
+	            content_width = getStringWidth(node.content)
+	        elif node.content_type == ContentType.IMAGE:
+	            content_width = getImageWidth(node.content)
+	        elif node.content_type == ContentType.SVG:
+	            content_width = getSVGWidth(node.content)
+	       	else:
+	           	raise NotImplementedError("Only getters for string, image, svg width are implemented")
+
+	        return node.style.border[1] + node.style.border[3] + \
+	        	node.style.border[0] + node.style.border[0] + \
+	        	content_width
+	    if node.style.direction == Direction.ROW or node.style.direction == Direction.ROW_REVERSE:
+    	    
 
 def layoutNode(node: Node, parent_width: float, parent_height: float) -> None:
     """
