@@ -10,7 +10,6 @@ class ContentType(Enum):
 
 	TEXT = auto()
 	IMAGE = auto()
-	SVG = auto()
 
 # ===== MEASUREMENT =====
 
@@ -170,12 +169,60 @@ class Node:
 	def isLeaf(self) -> bool:
 		return len(self.children) == 0
 
-def getNodeLineSize(
+def packNodeLines(
 	node: Node,
-	direction: Direction,
+	parent_width: float,
+	parent_height: float,
 	getStringSize: Callable[[str, Direction], float],
 	getImageSize: Callable[[Image, Direction], float],
-	getSVGSize: Callable[[str, Direction], float],
+) -> list[list[Node]]:
+	"""
+	Pack the lines of a node if it has line wrapping
+	"""
+
+	if node.isLeaf():
+		return []
+	if node.style.wrap == Wrap.NOWRAP:
+   		return [node.children]
+
+	inner_size = 0
+	if node.style.direction == Direction.ROW or node.style.direction == Direction.ROW_REVERSE:
+		inner_size: float = parent_width - \
+			node.style.margin[1] - node.style.margin[3] - \
+			node.style.border[1] - node.style.border[3] - \
+			node.style.padding[1] - node.style.padding[3]
+	if node.style.direction == Direction.COLUMN or node.style.direction == Direction.COLUMN_REVERSE:
+		inner_size: float = parent_height - \
+			node.style.border[0] - node.style.border[2] - \
+			node.style.padding[0] - node.style.padding[2]
+
+	current_size = 0
+	lines = []
+	current_line = []
+
+	for child in node.children:
+		if current_size == 0:
+			current_line.append(child)
+			continue
+		if current_size + getNodeLineSize(
+			child,
+			node.style.direction,
+			getStringSize,
+			getImageSize,
+		) <= inner_size:
+   			current_line.append(child)
+   			continue
+   		lines.append(current_line)
+   		current_line = []
+   	lines.append(current_line)	# append last current line
+   	return lines
+
+def getNodeLineSize(
+	node: Node,
+	direction: Direction,	# parent direction
+	parent_size: float,
+	getStringSize: Callable[[str, Direction], float],
+	getImageSize: Callable[[Image, Direction], float],
 ) -> float:
 	"""
 	Gets the size of a node in a line
@@ -188,54 +235,49 @@ def getNodeLineSize(
 			content_size = getStringSize(node.content, direction)
 		elif node.content_type == ContentType.IMAGE:
 			content_size = getImageSize(node.content, direction)
-		elif node.content_type == ContentType.SVG:
-			content_size = getSVGSize(node.content, direction)
 		else:
-		   	raise NotImplementedError("Only getters for string, image, svg width are implemented")
+		   	raise NotImplementedError("Only getters for string, image width are implemented")
 		if direction == Direction.ROW or direction == Direction.ROW_REVERSE:
 			return node.style.border[1] + node.style.border[3] + \
 				node.style.border[1] + node.style.border[3] + \
 				content_size
 		elif direction == Direction.COLUMN or direction == Direction.COLUMN_REVERSE:
 			return node.style.border[0] + node.style.border[2] + \
-				node.style.border[0] + node.style.border[2] + \
+				node.style.padding[0] + node.style.padding[2] + \
 				content_size
 
 	row_styles = [Direction.ROW, Direction.ROW_REVERSE]
 	column_styles = [Direction.COLUMN, Direction.COLUMN_REVERSE]
-	if (direction in row_styles and node.style.direction in row_styles) \
-		or (direction in column_styles and node.style.direction in column_styles):
-		return sum([getNodeLineSize(
-			child,
-			direction,
-			getStringSize,
-			getImageSize,
-			getSVGSize
-		) for child in node.children])
-	elif (direction in row_styles and node.style.direction in column_styles) \
-		or (direction in column_styles and node.style.direction in row_styles):
-		return max([getNodeLineSize(
-			child,
-			direction,
-			getStringSize,
-			getImageSize,
-			getSVGSize
-		) for child in node.children])
-	else:
-		raise ValueError("Invalid flex-direction")
+
+	if node.style.wrap == Wrap.NOWRAP:
+		if (direction in row_styles and node.style.direction in row_styles) \
+			or (direction in column_styles and node.style.direction in column_styles):
+			return sum([getNodeLineSize(
+				child,
+				direction,
+				getStringSize,
+				getImageSize,
+			) for child in node.children])
+		elif (direction in row_styles and node.style.direction in column_styles) \
+			or (direction in column_styles and node.style.direction in row_styles):
+			return max([getNodeLineSize(
+				child,
+				direction,
+				getStringSize,
+				getImageSize,
+			) for child in node.children])
+		else:
+			raise ValueError("Invalid flex-direction")
+
+	if direction == Direction.ROW or direction == Direction.ROW_REVERSE:
+
+		lines = packNodeLines(node, 
 
 def layoutNode(node: Node, parent_width: float, parent_height: float) -> None:
 	"""
 	Compute the layout for a node
 	"""
 
-	# determine available space (border-box by default)
-	inner_width: float = parent_width - \
-		node.style.border[1] - node.style.border[3] - \
-		node.style.padding[1] - node.style.padding[3]
-	inner_height: float = parent_height - \
-		node.style.border[0] - node.style.border[2] - \
-		node.style.padding[0] - node.style.padding[2]
 
 	# TODO: split children into lines
 
