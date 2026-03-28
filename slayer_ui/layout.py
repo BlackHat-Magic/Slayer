@@ -19,8 +19,6 @@ class Unit(Enum):
 	"""
 
 	PX = auto()
-	VW = auto()
-	VH = auto()
 	PERCENT = auto()
 
 @dataclass
@@ -177,17 +175,14 @@ class Window:
 	width: int
 	height: int
 
-def measurementToPX(measurement: Measurement, window: Window) -> float:
+def measurementToPX(measurement: Measurement) -> float:
 	"""
 	Helper to get a measurement as pixels based on window dimensions
 	"""
 
 	if measurement.unit == Unit.PX:
 		return measurement.value
-	elif measurement.unit == Unit.VW:
-		return measurement.value / 100.0 * window.width
-	elif mesurement.unit == Unit.VH:
-		return measurement.value / 100.0 * window.height
+	raise NotImplementedError("Percent units not implemented yet")
 
 def packNodeLines(
 	node: Node,
@@ -200,8 +195,8 @@ def packNodeLines(
 	"""
 	Pack the lines of a node if it has line wrapping
 		node: Node
-		parent_width: inner width of parent in px
-		parent_height: inner_width of parent in px
+		parent_width: inner width of parent in px; assumes padding already subtracted
+		parent_height: inner_width of parent in px; assumes padding already subtracted
 		getStringSize: renderer function/method for getting the size of a string given a direction
 		getImageSize: renderer function/method for getting the size of an image given a direction
 	"""
@@ -209,7 +204,7 @@ def packNodeLines(
 	if node.isLeaf():
 		return []
 	if node.style.wrap == Wrap.NOWRAP:
-   		return [node.children]
+		return [node.children]
 
 	inner_size = 0
 	if node.style.direction == Direction.ROW or node.style.direction == Direction.ROW_REVERSE:
@@ -219,6 +214,7 @@ def packNodeLines(
 			node.style.padding[1] - node.style.padding[3]
 	if node.style.direction == Direction.COLUMN or node.style.direction == Direction.COLUMN_REVERSE:
 		inner_size: float = parent_height - \
+			node.style.margin[0] - node.style.margin[2] - \
 			node.style.border[0] - node.style.border[2] - \
 			node.style.padding[0] - node.style.padding[2]
 
@@ -237,17 +233,26 @@ def packNodeLines(
 			getStringSize,
 			getImageSize,
 		) <= inner_size:
-   			current_line.append(child)
-   			continue
-   		lines.append(current_line)
-   		current_line = []
-   	lines.append(current_line)	# append last current line
-   	return lines
+			current_line.append(child)
+			current_size += getNodeLineSize(
+				node,
+				node.style.direction,
+				inner_size,
+				window,
+				getStringSize,
+				getImageSize,
+			)
+			continue
+		lines.append(current_line)
+		current_line = []
+	lines.append(current_line)	# append last current line
+	return lines
 
 def getNodeLineSize(
 	node: Node,
 	direction: Direction,	# parent direction
-	parent_size: float,		# in px
+	parent_width: float,	# in px
+	parent_height: float,	# in px
 	window: Window,
 	getStringSize: Callable[[str, Direction], float],
 	getImageSize: Callable[[Image, Direction], float],
@@ -258,7 +263,8 @@ def getNodeLineSize(
 	height for nodes in flex-direction=column or flex-direction=column-reverse
 		node: Node
 		direction: Direction of parent
-		parent_size: float in px
+		parent_width: float in px; assumes padding already subtracted
+		parent_height: float in px; assumes padding already subtracted
 		getStringSize: renderer method/function for getting the size of a string given a direction
 		getImageSize: renderer method/function for getting the size of an image given a direction
 	"""
@@ -266,32 +272,44 @@ def getNodeLineSize(
 	if node.isLeaf():
 		if node.style.width is not None \
 			and (node.style.direction in [Direction.ROW, Direction.ROW_REVERSE]):
-			return measurementToPX(node.style.width, window)
+			return measurementToPX(node.style.width)
 		elif node.style.height is not None \
 			and (node.style.direction in [Direction.COLUMN, Direction.COLUMN_REVERSE]):
-			return measurementToPX(node.style.height, window)
+			return measurementToPX(node.style.height)
 		elif node.content_type == ContentType.STRING:
 			content_size = getStringSize(node.content, direction)
 		elif node.content_type == ContentType.IMAGE:
 			content_size = getImageSize(node.content, direction)
 		else:
-		   	raise NotImplementedError("Only getters for string, image width are implemented")
+			raise NotImplementedError("Only getters for string, image width are implemented")
 
+		inner_size = content_size
 		if direction == Direction.ROW or direction == Direction.ROW_REVERSE:
-			inner_size = node.style.border[1] + node.style.border[3] + \
-				node.style.padding[1] + node.style.padding[3] + \
-				content_size
+			inner_size += node.style.border[1] + node.style.border[3] + \
+				node.style.padding[1] + node.style.padding[3]
+			if node.style.max_width is not None:
+				max_size = measurementToPX(node.style.max_width)
+			else:
+				max_size = float("inf")
+			if node.style.min_width is not None:
+				min_size = measurementToPX(node.style.min_width)
+			else:
+				min_size = 0
 		elif direction == Direction.COLUMN or direction == Direction.COLUMN_REVERSE:
 			inner_size = node.style.border[0] + node.style.border[2] + \
-				node.style.padding[0] + node.style.padding[2] + \
-				content_size
-
-		if node.style.max_width is not None:
-			max_width = measurementToPX(node.style.max_width, window)
+				node.style.padding[0] + node.style.padding[2]
+			if node.style.max_height is not None:
+				max_size = measurementToPX(node.style.max_height)
+			else:
+				max_size = float("inf")
+			if node.style.min_height is not None:
+				min_size = measurementToPX(node.style.min_height)
+			else:
+				min_size = 0
 		else:
-			max_width = float("inf")
-		max_width = node.style.max_width or float("inf")
-		min_width = node.style.min_width or 0
+			raise ValueError("Invalid flex-direction")
+
+		return min(max(min_size, content_size), max_size)
 
 	row_styles = [Direction.ROW, Direction.ROW_REVERSE]
 	column_styles = [Direction.COLUMN, Direction.COLUMN_REVERSE]
@@ -316,28 +334,64 @@ def getNodeLineSize(
 		else:
 			raise ValueError("Invalid flex-direction")
 
-	if direction == Direction.ROW or direction == Direction.ROW_REVERSE:
-		if node.style.width is not None:
-			parent_width_measurement = node.style.width
-		elif node.style.max_width is not None:
-			parent_width_measurement = node.style.max_width
-		else:
-			parent_width_measurement = Measurement(Unit.VW, 100)
-		if node.style.height is not None:
-			parent_height = node.style.height
-		elif node.style.max_height is not None:
-			parent_height_measurement = node.style.max_height
-		else:
-			parent_width_measurement = Measurement(Unit.VW, 100)
-		lines = packNodeLines(node, TODO_PARENTWIDTH, TODO_PARENTHEIGHT, getStringSize, getImageSize)
+	if node.style.width is not None:
+		parent_width_measurement = node.style.width
+	elif node.style.max_width is not None:
+		parent_width_measurement = node.style.max_width
+	else:
+		parent_width_measurement = Measurement(Unit.PX, float("inf"))
+	if node.style.height is not None:
+		parent_height = node.style.height
+	elif node.style.max_height is not None:
+		parent_height_measurement = node.style.max_height
+	else:
+		parent_width_measurement = Measurement(Unit.PX, float("inf"))
+	parent_width = measurementToPX(parent_width_measurement, window)
+	parent_height = measurementToPX(parent_height_measurement, window)
+	lines = packNodeLines(
+		node,
+		parent_width,
+		parent_height,
+		window,
+		getStringSize,
+		getImageSize
+	)
 
-def layoutNode(node: Node, parent_width: float, parent_height: float) -> None:
+	inner_width = parent_width - node.style.margin[1] - node.style.margin[3] - \
+		node.style.border[1] - node.style.border[3] - \
+		node.style.padding[1] - node.style.padding[1]
+	inner_height = parent_height - node.style.margin[0] - node.style.margin[2] - \
+		node.style.border[0] - node.style.border[2] - \
+		node.style.padding[0] - node.style.padding[2]
+
+	return max(lines, key=lambda line: sum([getNodeLineSize(
+		node,
+		direction,
+		inner_width,
+		inner_height,
+		window,
+		getStringSize,
+		getImageSize,
+	) for node in line]))
+
+def layoutNode(
+	node: Node,
+	parent_width: float,
+	parent_height: float,
+	window: Window,
+	getStringSize: Callable[[str, Direction], float],
+	getImageSize: Callable[[Image, Direction], float],
+) -> None:
 	"""
 	Compute the layout for a node
 	"""
 
+	inner_width = parent_width - node.border[1] - node.border[3] - \
+		node.padding[1] - node.padding[3]
+	inner_height = parent_height - node.border[0] - node.border[2] - \
+		node.padding[0] - node.padding[0]
 
-	# TODO: split children into lines
+	lines = packNodeLines(node, inner_width, inner_height, window)
 
 	# process each line (???)
 	for line in lines:
