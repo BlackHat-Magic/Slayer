@@ -93,7 +93,7 @@ class Style:
 
 	grow: float = 0.0
 	shrink: float = 1.0
-	basis: float | None = None
+	basis: float | None = None	# i forgor why i put this here
 
 	direction: Direction = Direction.ROW
 	wrap: Wrap = Wrap.NOWRAP
@@ -134,38 +134,65 @@ class Style:
 	min_height: Measurement | None = None
 	max_height: Measurement | None = None
 
-	top: Measurement = Measurement(Unit.PX, 0.0)
-	left: Measurement = Measurement(Unit.PX, 0.0)
+	# top: Measurement = Measurement(Unit.PX, 0.0)
+	# left: Measurement = Measurement(Unit.PX, 0.0)
 
+@dataclass
+class Rect:
+    x: float = 0
+    y: float = 0
+    w: float = 0
+    h: float = 0
+
+@dataclass
 class Node:
 	style: Style = Style()
 	parent: Node | None = None
 	children: list[Node] = []
 	content: Any
 
-	computed: dict = {
-		"border_box": {
-			"x": None,
-			"y": None,
-			"w": None,
-			"h": None
-		},
-		"padding_box": {
-			"x": None,
-			"y": None,
-			"w": None,
-			"h": None,
-		},
-		"content_box": {
-			"x": None,
-			"y": None,
-			"w": None,
-			"h": None,
-		},
-	}
+	def addChild(self, child: Node) -> None:
+    	self.children.append(child)
+    	child.parent = self
+
+    def removeChild(self, child: Node) -> None:
+        self.children.remove(child)
+        child.parent = None
+
+    def popChild(self, index=-1) -> Node:
+        child = self.children[index]
+        self.children.remove(child)
+        child.parent = None
+        return child
 
 	def isLeaf(self) -> bool:
 		return len(self.children) == 0
+
+@dataclass
+class ComputedNode:
+    parent: ComputedNode | None = None
+    children: list[ComputedNode] = []
+
+    border_box: Rect = Rect()
+    padding_box: Rect = Rect()
+    content_box: Rect = Rect()
+
+	def addChild(self, child: ComputedNode) -> None:
+    	self.children.append(child)
+    	child.parent = self
+
+    def removeChild(self, child: ComputedNode) -> None:
+        self.children.remove(child)
+        child.parent = None
+
+	def popChild(self, index=-1) -> ComputedNode:
+        child = self.children[index]
+        self.children.remove(child)
+        child.parent = None
+        return child
+
+    def isLeaf(self) -> bool:
+        return len(self.children) == 0
 
 @dataclass
 class Window:
@@ -256,7 +283,7 @@ def getNodeLineSize(
 	window: Window,
 	getStringSize: Callable[[str, Direction], float],
 	getImageSize: Callable[[Image, Direction], float],
-) -> float: # returns px
+) -> computedNode: # returns px
 	"""
 	Gets the size of a node in a line
 	width for nodes in flex-direction=row or flex-direction=row-reverse
@@ -376,6 +403,9 @@ def getNodeLineSize(
 
 def layoutNode(
 	node: Node,
+	computed: ComputedNode,
+	x: float,
+	y: float,
 	parent_width: float,
 	parent_height: float,
 	window: Window,
@@ -386,6 +416,13 @@ def layoutNode(
 	Compute the layout for a node
 	"""
 
+	computed.border_box.x = x
+	computed.border_box.y = y
+	computed.padding_box.x = computed.border_box.x + node.border[3]
+	computed.padding_box.y = computed.border_box.y + node.border[0]
+	computed.content_box.x = computed.padding_box.x + node.border[3]
+	computed.content_box.y = computed.padding_box.y + node.border[0]
+
 	inner_width = parent_width - node.border[1] - node.border[3] - \
 		node.padding[1] - node.padding[3]
 	inner_height = parent_height - node.border[0] - node.border[2] - \
@@ -395,7 +432,94 @@ def layoutNode(
 
 	# process each line (???)
 	for line in lines:
-		# TODO: resolve main axis sizes (grow/shrink)
+		# resolve main axis sizes (grow/shrink)
+		# TODO: resolve max-width/max-height/min-width/min-height AFTER growth/shrinkage
+		free_space = 0
+		if node.style.direction in [Direction.ROW, Direction.ROW_REVERSE]:
+    		free_space = inner_width
+    	else:
+        	free_space = inner_height
+        computed_children = []
+        for child in line:
+            # compute basis
+            computed_child = ComputedNode()
+            child_size = getNodeLineSize(
+            	node,
+            	node.style.direction,
+            	inner_width,
+            	inner_height,
+            	window,
+            	getStringSize,
+            	getImageSize
+            )
+            free_space -= child_size
+            if node.style.direction in [Direction.ROW, Direction.ROW_REVERSE]:
+                free_space -= child.style.margin[1] - child.style.margin[3]
+                computed_child.border_box.x = x + inner_width - free_space - child_size
+                computed_child.padding_box.x = computed_child.border_box.x + child.style.border[3]
+                computed_child.content_box.x = computed_child.padding_box.x + child.style.padding[3]
+                computed_child.border_box.w = child_size
+                computed_child.padding_box.w = computed_child.border_box.w - \
+                	child.style.border[1] - child.style.border[3]
+                computed_child.content_box.w = computed_child.padding_box.w - \
+                	child.style.padding[1] - child.style.padding[3]
+            else:
+                free_space -= child.style.margin[0] - child.style.margin[2]
+                computed_child.border_box.y = y + inner_width - free_space - child_size
+                computed_child.padding_box.x = computed_child.border_box.x + child.style.border[0]
+                computed_child.content_box.x = computed_child.padding_box.x + child.style.padding[0]
+                computed_child.padding_box.h = computed_child.border_box.h - \
+                	child.style.border[0] - child.style.border[2]
+                computed_child.content_box.h = computed_child.padding_box.h - \
+                	child.style.padding[0] - child.style.padding[2]
+            computed_children.append(computed_child)
+        total_growth = sum([child.style.grow for child in line])
+        total_shrinkage = sum([child.style.shrink for child in line])
+        total_size = 0
+        if node.style.direction in [Direction.ROW, Direction.ROW_REVERSE]:
+            total_size = inner_width - free_space
+        else:
+            total_size = inner_height - free_space
+        if free_space > 0 and total_growth > 0:
+            child_growth = 0
+            for child, computed_child in zip(line, computed_children):
+                if node.style.direction in [Direction.ROW, Direction.ROW_REVERSE]:
+                    computed_child.border_box.x += child_growth
+                    computed_child.padding_box.x += child_growth
+                    computed_child.content_box.x += child_growth
+                	child_growth = child.style.grow / total_growth * free_space
+                	computed_child.border_box.w += child_growth
+                	computed_child.padding_box.w += child_growth
+                	computed_child.content_box.w += child_growth
+                else:
+                    computed_child.border_box.y += child_growth
+                    computed_child.padding_box.y += child_growth
+                    computed_child.content_box.y += child_growth
+                	child_growth = child.style.grow / total_growth * free_space
+                	computed_child.border_box.h += child_growth
+                	computed_child.padding_box.h += child_growth
+                	computed_child.content_box.h += child_growth
+		elif free_space < 0 and total_shrinkage > 0:
+    		child_shrinkage = 0
+            for child, computed_child in zip(line, computed_children):
+                if node.style.direction in [Direction.ROW, Direction.ROW_REVERSE]:
+                    computed_child.border_box.x -= child_shrinkage
+                    computed_child.padding_box.x -= child_shrinkage
+                    computed_child.content_box.x -= child_shrinkage
+                    child_portion = computed_child.border_box.w / total_size * len(computed_children)
+                	child_shrinkage = child.style.shrink / total_shrinkage * free_space * child_portion
+                	computed_child.border_box.w -= child_shrinkage
+                	computed_child.padding_box.w -= child_shrinkage
+                	computed_child.content_box.w -= child_shrinkage
+                else:
+                    computed_child.border_box.y -= child_shrinkage
+                    computed_child.padding_box.y -= child_shrinkage
+                    computed_child.content_box.y -= child_shrinkage
+                    child_portion = computed_child.border_box.h / total_size * len(computed_children)
+                	child_shrinkage = child.style.shrink / total_shrinkage * free_space * child_portion
+                	computed_child.border_box.h -= child_shrinkage
+                	computed_child.padding_box.h -= child_shrinkage
+                	computed_child.content_box.h -= child_shrinkage
 		# TODO: align with main axis (justify content)
 		# TODO: align cross axis (align items)
 		pass
