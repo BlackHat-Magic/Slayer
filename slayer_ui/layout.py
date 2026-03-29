@@ -352,8 +352,8 @@ def getNodeLineSize(
 		parent_height_measurement = node.style.max_height
 	else:
 		parent_width_measurement = Measurement(Unit.PX, float("inf"))
-	parent_width = measurementToPX(parent_width_measurement, window)
-	parent_height = measurementToPX(parent_height_measurement, window)
+	parent_width = measurementToPX(parent_width_measurement)
+	parent_height = measurementToPX(parent_height_measurement)
 	lines = packNodeLines(
 		node,
 		parent_width,
@@ -408,7 +408,8 @@ def layoutNode(
 
 	lines = packNodeLines(node, inner_width, inner_height, window)
 
-	# process each line (???)
+	# process each line
+	# TODO: margin???
 	for line in lines:
 		# resolve main axis sizes (grow/shrink)
 		free_space = 0
@@ -512,7 +513,89 @@ def layoutNode(
 					if child.style.max_height <= child.border_box.h:
 						continue
 					total_shrink += child.style.shrink
-		# TODO: align with main axis (justify content)
+
+	main_axis_size = 0
+	cross_axis_size = 0
+	if node.style.direction in [Direction.ROW, Direction.ROW_REVERSE]:
+		main_axis_size = max(
+			lines,
+			key=lambda line: sum([
+				child.border_box.w + child.style.margin[1] + child.style.margin[3] for child in line
+			])
+		)
+		cross_axis_size = sum(
+			[max([
+				child.border_box.h + child.style.margin[0] + child.style.margin[2] for child in line
+			]) for line in lines]
+		)
+		if node.style.width is not None:
+			node.content_box.w = measurementToPX(node.style.width)
+		else:
+			node.content_box.w = min(max(main_axis_size, node.style.min_width), node.style.max_width)
+		node.padding_box.w = node.content_box.w + node.style.padding[1] + node.style.padding[3]
+		node.border_box.w = node.padding_box.w + node.style.border[1] + node.style.border[3]
+		if node.style.height is not None:
+			node.content_box.h = measurementToPX(node.style.width)
+		else:
+			node.content_box.h = min(max(cross_axis_size, node.style.min_height), node.style.max_height)
+		node.padding_box.h = node.content_box.h + node.style.padding[0] + node.style.padding[2]
+		node.border_box.h = node.padding_box.h + node.style.border[0] + node.style.border[2]
+	else:
+		main_axis_size = max(
+			lines,
+			key=lambda line: sum([
+				child.border_box.h + child.style.margin[0] + child.style.margin[2] for child in line
+			])
+		)
+		cross_axis_size = sum(
+			[max([
+				child.border_box.2 + child.style.margin[1] + child.style.margin[3] for child in line
+			]) for line in lines]
+		)
+		node.content_box.w = cross_axis_size
+		node.padding_box.w = node.content_box.w + node.style.padding[1] + node.style.padding[3]
+		node.border_box.w = node.padding_box.w + node.style.border[1] + node.style.border[3]
+		node.content_box.h = main_axis_size
+		node.padding_box.h = node.content_box.h + node.style.padding[0] + node.style.padding[2]
+		node.border_box.h = node.padding_box.h + node.style.border[0] + node.style.border[2]
+
+	for line in lines:
+	# align with main axis (justify content)
+	# TODO: margin??
+		if node.style.direction in [Direction.ROW, Direction.ROW_REVERSE]:
+			if node.style.justify_content == JustifyContent.START:
+				current_x = node.content_box.x
+				for child in line:
+					child.border_box.x = current_x
+					child.padding_box.x = child.border_box.x + child.style.border[3]
+					child.content_box.x = child.padding_box.x + child.style.padding[3]
+					current_x += child.border_box.w
+			elif node.style.justify_content == JustifyContent.END:
+				current_x = node.content_box.x + node.content_box.w - main_axis_size
+				for child in line:
+					child.border_box.x = current_x
+					child.padding_box.x = child.border_box.x + child.style.border[3]
+					child.content_box.x = child.padding_box.x + child.style.padding[3]
+					current_x += child.border_box.w
+			elif node.style.justify_content == JustifyContent.CENTER:
+				current_x = node.content_box.x + node.content_box.w / 2
+				total_width = sum([child.border_box.w for child in line])
+				current_x -= total_width / 2
+				for child in line:
+					child.border_box.x = current_x
+					child.padding_box.x = child.border_box.x + child.style.border[3]
+					child.content_box.x = child.padding_box.x + child.style.padding[3]
+					current_x += child.border_box.w
+			elif node.style.justify_content == JustifyContent.BETWEEN:
+			elif node.style.justify_content == JustifyContent.AROUND:
+			elif node.style.justify_content == JustifyContent.EVENLY:
+		else:
+			if node.style.justify_content == JustifyContent.START:
+				for child in line:
+					child.border_box.y = current_x
+					child.padding_box.y = child.border_box.y + child.style.border[3]
+					child.content_box.y = child.padding_box.y + child.style.padding[3]
+					current_x += child.border_box.h
 		# TODO: align cross axis (align items)
 		pass
 
