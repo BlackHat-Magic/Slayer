@@ -38,6 +38,9 @@ from slayer_ui import UI
 
 M = Measurement	# Not necessary; just a QOL thing
 
+WINDOW_WIDTH: int = 800
+WINDOW_HEIGHT: int = 600
+
 root = Node(style=Style(
     direction=Direction.ROW,
     justify_content=JustifyContent.START,
@@ -59,5 +62,33 @@ header = Node(content="Hello, World!", style=Style(
     color=[1.0, 1.0, 1.0, 1.0],
 ))
 root.addChild(header)
+
+def draw_rect(
+	x: int, y: int, w: int, h: int,
+	color: list[float] | None = None,
+	border: list[float] | None = None
+) -> None:
+	# Your super-awesome rect drawing function
+	# e.g., wrapper around pygame.draw.rect()
+
+def draw_text(text: str, x: int, y: int, color: list[float] | None = None) -> None:
+	# Your super-awesome text drawing function
+	# e.g., wrapper around pygame.screen.blit()
+
+def measure_text(text: str) -> float:
+	# a function to measure the width of a given string of text as rendered with your renderer
+	# e.g., wrapper around pygame.font.Font.size()
+
+def measure_text_height(text: str) -> float:
+	# a function to measure the height of a given string of text as rendered with your renderer
+	# e.g., wrapper around pygame.font.Font.size()
+
+ui = UI(
+	draw_rect,				# Slayer will use your function to draw the UI rects
+	draw_text,				# Slayer will use your function to draw the UI text strings
+	measure_text,			# Slayer will use your function to measure UI text (e.g., line wrapping)
+	measure_text_height,	# Slayer will use your function to measure UI text height
+)
+ui.render(WINDOW_WIDTH, WINDOW_HEIGHT)	# Draw the UI to the screen
 ```
 
