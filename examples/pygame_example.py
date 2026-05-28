@@ -1,5 +1,15 @@
 import pygame
+from slayer_ui.layout import Node, Style, Direction, Unit, Measurement, JustifyContent, Align, Wrap
 from slayer_ui import UI
+
+
+M = Measurement
+
+
+def _to_pygame(c):
+    if c is None:
+        return None
+    return tuple(int(v * 255) for v in c[:3])
 
 
 class PygameRenderer:
@@ -9,63 +19,122 @@ class PygameRenderer:
         self.height = height
         self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption(title)
-        self.font = pygame.font.Font(None, 24)
+        self.font = pygame.font.Font(None, 32)
         self.clock = pygame.time.Clock()
         self.running = True
 
-    def draw_rect(self, x, y, width, height, color=(200, 200, 200), border=None):
+    def draw_rect(self, x, y, width, height, color=None, border=None):
+        x, y, w, h = int(x), int(y), max(1, int(width)), max(1, int(height))
         if color:
-            pygame.draw.rect(self.screen, color, (x, y, width, height))
-        if border:
-            pygame.draw.rect(self.screen, border, (x, y, width, height), 2)
+            pygame.draw.rect(self.screen, _to_pygame(color), (x, y, w, h))
+        if border and any(v > 0 for v in border[:3]):
+            pygame.draw.rect(self.screen, _to_pygame(border), (x, y, w, h), 2)
 
-    def draw_text(self, text, x, y, color=(0, 0, 0), font_size=None):
-        font = pygame.font.Font(None, font_size * 4 if font_size else 24)
-        surface = font.render(text, True, color)
-        self.screen.blit(surface, (x, y))
+    def draw_text(self, text, x, y, color=None):
+        s = self.font.render(text, True, _to_pygame(color) or (0, 0, 0))
+        self.screen.blit(s, (int(x), int(y)))
 
-    def measure_text(self, text, font_size=None):
-        font = pygame.font.Font(None, font_size * 4 if font_size else 24)
-        surface = font.render(text, True, (0, 0, 0))
-        return surface.get_width()
+    def measure_text(self, text):
+        return self.font.size(text)[0]
 
-    def run(self, ui_callback):
+    def measure_text_height(self, text):
+        return self.font.size(text)[1]
+
+    def run(self, ui):
         while self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    self.running = False
 
             self.screen.fill((240, 240, 240))
-
-            ui_callback(self)
-
+            ui.render(self.width, self.height)
             pygame.display.flip()
             self.clock.tick(60)
 
         pygame.quit()
 
 
+def build_demo_tree():
+    root = Node(style=Style(
+        direction=Direction.ROW,
+        justify_content=JustifyContent.START,
+        align_items=Align.STRETCH,
+        width=M(Unit.PX, 790),
+        height=M(Unit.PX, 390),
+        background_color=[0.2, 0.2, 0.3, 1.0],
+        border_color=[0.4, 0.4, 0.5, 1.0],
+        border=[M(Unit.PX, 5)] * 4,
+        padding=[M(Unit.PX, 10)] * 4,
+    ))
+
+    sidebar = Node(style=Style(
+        width=M(Unit.PX, 200),
+        background_color=[0.15, 0.15, 0.25, 1.0],
+        border_color=[0.3, 0.3, 0.4, 1.0],
+        border=[M(Unit.PX, 2)] * 4,
+        padding=[M(Unit.PX, 10)] * 4,
+    ))
+    root.addChild(sidebar)
+
+    main_area = Node(style=Style(
+        grow=1.0,
+        direction=Direction.COLUMN,
+        justify_content=JustifyContent.START,
+        align_items=Align.STRETCH,
+        background_color=[0.25, 0.25, 0.35, 1.0],
+        border_color=[0.3, 0.3, 0.4, 1.0],
+        border=[M(Unit.PX, 2)] * 4,
+        padding=[M(Unit.PX, 10)] * 4,
+        margin=[M(Unit.PX, 0), M(Unit.PX, 0), M(Unit.PX, 0), M(Unit.PX, 10)],
+    ))
+    root.addChild(main_area)
+
+    header = Node(content="Flexbox Layout Demo", style=Style(
+        background_color=[0.3, 0.3, 0.45, 1.0],
+        border_color=[0.5, 0.5, 0.6, 1.0],
+        border=[M(Unit.PX, 2)] * 4,
+        padding=[M(Unit.PX, 8)] * 4,
+        margin=[M(Unit.PX, 0), M(Unit.PX, 0), M(Unit.PX, 8), M(Unit.PX, 0)],
+        color=[1.0, 1.0, 1.0, 1.0],
+    ))
+    main_area.addChild(header)
+
+    body = Node(style=Style(
+        direction=Direction.ROW,
+        grow=1.0,
+        justify_content=JustifyContent.CENTER,
+        align_items=Align.CENTER,
+        background_color=[0.2, 0.2, 0.3, 1.0],
+        border_color=[0.3, 0.3, 0.4, 1.0],
+        border=[M(Unit.PX, 2)] * 4,
+        padding=[M(Unit.PX, 10)] * 4,
+        wrap=Wrap.WRAP,
+        row_gap=M(Unit.PX, 8),
+        column_gap=M(Unit.PX, 8),
+    ))
+    main_area.addChild(body)
+
+    for i in range(3):
+        body.addChild(Node(content=f"Card {i + 1}", style=Style(
+            width=M(Unit.PX, 150),
+            background_color=[0.35, 0.45, 0.55, 1.0],
+            border_color=[0.5, 0.6, 0.7, 1.0],
+            border=[M(Unit.PX, 2)] * 4,
+            padding=[M(Unit.PX, 12)] * 4,
+            margin=[M(Unit.PX, 4)] * 4,
+            color=[1.0, 1.0, 1.0, 1.0],
+        )))
+
+    return root
+
+
 def main():
-    renderer = PygameRenderer(800, 600, "Slayer UI - Pygame Renderer")
-    ui = UI(renderer.draw_rect, renderer.draw_text, renderer.measure_text)
-
-    def demo_ui(r):
-        r.draw_rect(50, 50, 300, 200, color=(100, 150, 200), border=(50, 100, 150))
-        r.draw_text("Hello, Slayer UI!", 70, 70, color=(255, 255, 255), font_size=16)
-
-        r.draw_rect(50, 280, 300, 200, color=(200, 150, 100), border=(150, 100, 50))
-        r.draw_text(
-            "Pygame Renderer Example", 70, 300, color=(255, 255, 255), font_size=14
-        )
-
-        text = "This is a demonstration of the renderer interface."
-        width = r.measure_text(text, font_size=12)
-        r.draw_text(
-            f"Text width: {width}px", 70, 330, color=(255, 255, 255), font_size=12
-        )
-        r.draw_text(text, 70, 350, color=(255, 255, 255), font_size=12)
-
-    renderer.run(demo_ui)
+    renderer = PygameRenderer(800, 600, "Slayer UI - Flexbox Demo")
+    root = build_demo_tree()
+    ui = UI(renderer.draw_rect, renderer.draw_text, renderer.measure_text, renderer.measure_text_height, node=root)
+    renderer.run(ui)
 
 
 if __name__ == "__main__":
