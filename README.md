@@ -9,7 +9,7 @@ A simple UI layout library
 
 ## Overview
 
-Slayer is a simple, immediate-mode UI library that aims to replicate the functionality of CSS's box model, flexbox, and grid.
+Slayer is a simple UI library that aims to replicate the functionality of CSS's box model, flexbox, and grid.
 
 ### Features
 
