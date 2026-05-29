@@ -2,7 +2,7 @@
 
 # Slayer
 
-A simple, immediate-mode UI library
+A simple UI layout library
 
 </div>
 

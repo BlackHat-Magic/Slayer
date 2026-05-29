@@ -1,7 +1,7 @@
 [project]
 name = "slayer"
 version = "0.1.0"
-description = "Immediate-mode UI layout library"
+description = "Simple UI layout library"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
