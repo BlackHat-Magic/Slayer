@@ -1,7 +1,6 @@
 import pygame
 from slayer_ui.layout import Node, Style, Direction, Unit, Measurement, JustifyContent, Align, Wrap
-from slayer_ui import UI
-
+from slayer_ui import UI, RenderRect, RenderText
 
 M = Measurement
 
@@ -23,12 +22,12 @@ class PygameRenderer:
         self.clock = pygame.time.Clock()
         self.running = True
 
-    def draw_rect(self, x, y, width, height, color=None, border=None):
+    def draw_rect(self, x, y, width, height, color=None, border=None, border_width=0):
         x, y, w, h = int(x), int(y), max(1, int(width)), max(1, int(height))
         if color:
             pygame.draw.rect(self.screen, _to_pygame(color), (x, y, w, h))
-        if border and any(v > 0 for v in border[:3]):
-            pygame.draw.rect(self.screen, _to_pygame(border), (x, y, w, h), 2)
+        if border and any(v > 0 for v in border[:3]) and border_width > 0:
+            pygame.draw.rect(self.screen, _to_pygame(border), (x, y, w, h), max(1, int(border_width)))
 
     def draw_text(self, text, x, y, color=None):
         s = self.font.render(text, True, _to_pygame(color) or (0, 0, 0))
@@ -40,7 +39,7 @@ class PygameRenderer:
     def measure_text_height(self, text):
         return self.font.size(text)[1]
 
-    def run(self, ui):
+    def run(self, ui, root):
         while self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -49,7 +48,19 @@ class PygameRenderer:
                     self.running = False
 
             self.screen.fill((240, 240, 240))
-            ui.render(self.width, self.height)
+
+            commands = ui.compute_layout(root, self.width, self.height)
+            for cmd in commands:
+                if isinstance(cmd, RenderRect):
+                    self.draw_rect(
+                        cmd.x, cmd.y, cmd.w, cmd.h,
+                        color=cmd.background_color,
+                        border=cmd.border_color,
+                        border_width=max(cmd.border_widths),
+                    )
+                elif isinstance(cmd, RenderText):
+                    self.draw_text(cmd.text, cmd.x, cmd.y, color=cmd.color)
+
             pygame.display.flip()
             self.clock.tick(60)
 
@@ -71,6 +82,7 @@ def build_demo_tree():
 
     sidebar = Node(style=Style(
         width=M(Unit.PX, 200),
+        height=M(Unit.PERCENT, 100),
         background_color=[0.15, 0.15, 0.25, 1.0],
         border_color=[0.3, 0.3, 0.4, 1.0],
         border=[M(Unit.PX, 2)] * 4,
@@ -95,9 +107,10 @@ def build_demo_tree():
         background_color=[0.3, 0.3, 0.45, 1.0],
         border_color=[0.5, 0.5, 0.6, 1.0],
         border=[M(Unit.PX, 2)] * 4,
-        padding=[M(Unit.PX, 8)] * 4,
+        padding=[M(Unit.PX, 2)] * 4,
         margin=[M(Unit.PX, 0), M(Unit.PX, 0), M(Unit.PX, 8), M(Unit.PX, 0)],
         color=[1.0, 1.0, 1.0, 1.0],
+        width=M(Unit.PERCENT, 100),
     ))
     main_area.addChild(header)
 
@@ -113,10 +126,11 @@ def build_demo_tree():
         wrap=Wrap.WRAP,
         row_gap=M(Unit.PX, 8),
         column_gap=M(Unit.PX, 8),
+        width=M(Unit.PERCENT, 100),
     ))
     main_area.addChild(body)
 
-    for i in range(3):
+    for i in range(5):
         body.addChild(Node(content=f"Card {i + 1}", style=Style(
             width=M(Unit.PX, 150),
             background_color=[0.35, 0.45, 0.55, 1.0],
@@ -133,8 +147,8 @@ def build_demo_tree():
 def main():
     renderer = PygameRenderer(800, 600, "Slayer UI - Flexbox Demo")
     root = build_demo_tree()
-    ui = UI(renderer.draw_rect, renderer.draw_text, renderer.measure_text, renderer.measure_text_height, node=root)
-    renderer.run(ui)
+    ui = UI(renderer.measure_text, renderer.measure_text_height)
+    renderer.run(ui, root)
 
 
 if __name__ == "__main__":
