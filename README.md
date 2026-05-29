@@ -34,7 +34,7 @@ Inside your business logic:
 
 ```python
 from slayer_ui.layout import Node, Style, Direction, Unit, Measurement, JustifyContent, Align, Wrap
-from slayer_ui import UI
+from slayer_ui import UI, RenderRect, RenderText
 
 M = Measurement	# Not necessary; just a QOL thing
 
@@ -63,32 +63,19 @@ header = Node(content="Hello, World!", style=Style(
 ))
 root.addChild(header)
 
-def draw_rect(
-	x: int, y: int, w: int, h: int,
-	color: list[float] | None = None,
-	border: list[float] | None = None
-) -> None:
-	# Your super-awesome rect drawing function
-	# e.g., wrapper around pygame.draw.rect()
-
-def draw_text(text: str, x: int, y: int, color: list[float] | None = None) -> None:
-	# Your super-awesome text drawing function
-	# e.g., wrapper around pygame.screen.blit()
-
 def measure_text(text: str) -> float:
-	# a function to measure the width of a given string of text as rendered with your renderer
-	# e.g., wrapper around pygame.font.Font.size()
+    return len(text) * 8.0
 
 def measure_text_height(text: str) -> float:
-	# a function to measure the height of a given string of text as rendered with your renderer
-	# e.g., wrapper around pygame.font.Font.size()
+    return 16.0
 
-ui = UI(
-	draw_rect,				# Slayer will use your function to draw the UI rects
-	draw_text,				# Slayer will use your function to draw the UI text strings
-	measure_text,			# Slayer will use your function to measure UI text (e.g., line wrapping)
-	measure_text_height,	# Slayer will use your function to measure UI text height
-)
-ui.render(WINDOW_WIDTH, WINDOW_HEIGHT)	# Draw the UI to the screen
+ui = UI(measure_text, measure_text_height)
+
+commands = ui.compute_layout(root, WINDOW_WIDTH, WINDOW_HEIGHT)
+for cmd in commands:
+    if isinstance(cmd, RenderRect):
+        your_draw_rect(cmd.x, cmd.y, cmd.w, cmd.h, cmd.background_color, cmd.border_color, cmd.border_widths)
+    elif isinstance(cmd, RenderText):
+        your_draw_text(cmd.text, cmd.x, cmd.y, cmd.color)
 ```
 
