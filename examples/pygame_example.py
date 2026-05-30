@@ -108,6 +108,7 @@ def build_demo_tree():
         padding=[M(Unit.PX, 24)] * 4,
         margin=[M(Unit.PX, 0), M(Unit.PX, 0), M(Unit.PX, 8), M(Unit.PX, 0)],
         color=[1.0, 1.0, 1.0, 1.0],
+        width=M(Unit.PERCENT, 100)
     ))
     main_area.addChild(header)
 
@@ -123,6 +124,7 @@ def build_demo_tree():
         wrap=Wrap.WRAP,
         row_gap=M(Unit.PX, 8),
         column_gap=M(Unit.PX, 8),
+        width=M(Unit.PERCENT, 100)
     ))
     main_area.addChild(body)
 
