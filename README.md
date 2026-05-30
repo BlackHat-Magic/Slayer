@@ -74,7 +74,7 @@ ui = UI(measure_text, measure_text_height)
 commands = ui.compute_layout(root, WINDOW_WIDTH, WINDOW_HEIGHT)
 for cmd in commands:
     if isinstance(cmd, RenderRect):
-        your_draw_rect(cmd.x, cmd.y, cmd.w, cmd.h, cmd.background_color, cmd.border_color, cmd.border_widths)
+        your_draw_rect(cmd.x, cmd.y, cmd.w, cmd.h, cmd.background_color, cmd.border_color)
     elif isinstance(cmd, RenderText):
         your_draw_text(cmd.text, cmd.x, cmd.y, cmd.color)
 ```

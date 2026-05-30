@@ -1,4 +1,4 @@
-from .layout import layoutNode, Window, ContentType, RenderRect, RenderText, _to_px
+from .layout import layoutNode, Window, ContentType, RenderRect, RenderText
 
 
 def collect_render_commands(node) -> list[RenderRect | RenderText]:
@@ -17,12 +17,6 @@ def _collect(node, commands: list):
         and bb.w > 0
         and bb.h > 0
     ):
-        border_widths = [
-            _to_px(node.style.border[0]),
-            _to_px(node.style.border[1]),
-            _to_px(node.style.border[2]),
-            _to_px(node.style.border[3]),
-        ]
         commands.append(
             RenderRect(
                 x=bb.x,
@@ -31,7 +25,6 @@ def _collect(node, commands: list):
                 h=bb.h,
                 background_color=node.style.background_color,
                 border_color=node.style.border_color,
-                border_widths=border_widths,
             )
         )
 

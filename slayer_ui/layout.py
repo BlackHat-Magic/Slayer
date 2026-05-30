@@ -164,7 +164,6 @@ class RenderRect:
 	h: float
 	background_color: list[float] = field(default_factory=lambda: [1.0, 1.0, 1.0, 1.0])
 	border_color: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0, 0.0])
-	border_widths: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0, 0.0])
 
 
 @dataclass
@@ -372,27 +371,6 @@ def getNodeLineSize(
 	if node.isLeaf():
 		return _leaf_main_size(node, direction, parent_width, parent_height, getStringSize, getImageSize)
 
-	if direction in _ROW_DIRECTIONS and node.style.width is not None:
-		raw = _to_px(node.style.width, parent_width)
-		max_s = _to_px(node.style.max_width, parent_width, float("inf"))
-		min_s = _to_px(node.style.min_width, parent_width, 0.0)
-		if node.style.box_sizing == BoxSizing.CONTENT_BOX:
-			raw = min(max(min_s, raw), max_s)
-			return raw + _bl(node) + _br(node) + _pl(node) + _pr(node)
-		max_s = max_s + _bl(node) + _br(node) + _pl(node) + _pr(node) if node.style.max_width is not None else float("inf")
-		min_s = min_s + _bl(node) + _br(node) + _pl(node) + _pr(node) if node.style.min_width is not None else 0.0
-		return min(max(min_s, raw), max_s)
-	if direction in _COL_DIRECTIONS and node.style.height is not None:
-		raw = _to_px(node.style.height, parent_height)
-		max_s = _to_px(node.style.max_height, parent_height, float("inf"))
-		min_s = _to_px(node.style.min_height, parent_height, 0.0)
-		if node.style.box_sizing == BoxSizing.CONTENT_BOX:
-			raw = min(max(min_s, raw), max_s)
-			return raw + _bt(node) + _bb(node) + _pt(node) + _pb(node)
-		max_s = max_s + _bt(node) + _bb(node) + _pt(node) + _pb(node) if node.style.max_height is not None else float("inf")
-		min_s = min_s + _bt(node) + _bb(node) + _pt(node) + _pb(node) if node.style.min_height is not None else 0.0
-		return min(max(min_s, raw), max_s)
-
 	if node.style.wrap == Wrap.NOWRAP:
 		same_axis = (direction in _ROW_DIRECTIONS and node.style.direction in _ROW_DIRECTIONS) or \
 					(direction in _COL_DIRECTIONS and node.style.direction in _COL_DIRECTIONS)
@@ -478,12 +456,8 @@ def layoutNode(
 	resolved_h = min(resolved_h, _to_px(node.style.max_height, parent_height, float("inf")))
 	resolved_h = max(resolved_h, _to_px(node.style.min_height, parent_height, 0.0))
 
-	if node.parent is not None:
-		inner_width = parent_width
-		inner_height = parent_height
-	else:
-		inner_width = resolved_w - border_left - border_right - padding_left - padding_right
-		inner_height = resolved_h - border_top - border_bottom - padding_top - padding_bottom
+	inner_width = resolved_w - border_left - border_right - padding_left - padding_right
+	inner_height = resolved_h - border_top - border_bottom - padding_top - padding_bottom
 
 	main_gap = _to_px(node.style.column_gap if is_row else node.style.row_gap, inner_width if is_row else inner_height)
 	cross_gap = _to_px(node.style.row_gap if is_row else node.style.column_gap, inner_height if is_row else inner_width)
@@ -796,9 +770,7 @@ def _resolve_container_size(node: Node, lines: list[list[Node]], direction: Dire
 	padding_bottom = _pb(node)
 
 	if is_row:
-		if node.parent is not None:
-			content_w = max(main_axis_total, inner_width)
-		elif node.style.width is not None:
+		if node.style.width is not None:
 			raw = _to_px(node.style.width, parent_width)
 			max_w = _to_px(node.style.max_width, parent_width, float("inf"))
 			min_w = _to_px(node.style.min_width, parent_width, 0.0)
@@ -816,9 +788,7 @@ def _resolve_container_size(node: Node, lines: list[list[Node]], direction: Dire
 			min_w = _to_px(node.style.min_width, parent_width, 0.0)
 			content_w = min(max(min_w, content_w), max_w)
 
-		if node.parent is not None:
-			content_h = max(cross_axis_total, inner_height)
-		elif node.style.height is not None:
+		if node.style.height is not None:
 			raw = _to_px(node.style.height, parent_height)
 			max_h = _to_px(node.style.max_height, parent_height, float("inf"))
 			min_h = _to_px(node.style.min_height, parent_height, 0.0)
@@ -837,9 +807,7 @@ def _resolve_container_size(node: Node, lines: list[list[Node]], direction: Dire
 		node.content_box.w = content_w
 		node.content_box.h = content_h
 	else:
-		if node.parent is not None:
-			content_h = max(main_axis_total, inner_height)
-		elif node.style.height is not None:
+		if node.style.height is not None:
 			raw = _to_px(node.style.height, parent_height)
 			max_h = _to_px(node.style.max_height, parent_height, float("inf"))
 			min_h = _to_px(node.style.min_height, parent_height, 0.0)
@@ -857,9 +825,7 @@ def _resolve_container_size(node: Node, lines: list[list[Node]], direction: Dire
 			min_h = _to_px(node.style.min_height, parent_height, 0.0)
 			content_h = min(max(min_h, content_h), max_h)
 
-		if node.parent is not None:
-			content_w = inner_width
-		elif node.style.width is not None:
+		if node.style.width is not None:
 			raw = _to_px(node.style.width, parent_width)
 			max_w = _to_px(node.style.max_width, parent_width, float("inf"))
 			min_w = _to_px(node.style.min_width, parent_width, 0.0)
@@ -967,12 +933,7 @@ def _align_items(node: Node, lines: list[list[Node]], direction: Direction, is_r
 		for child in line:
 			child_align = child.style.align_self if (child.style.align_self is not None and child.style.align_self != Align.AUTO) else align
 
-		if child_align == Align.STRETCH:
-			if is_row and child.style.height is not None:
-				pass
-			elif not is_row and child.style.width is not None:
-				pass
-			else:
+			if child_align == Align.STRETCH:
 				new_cross = container_cross - _cross_margin(child, direction)
 				if is_row:
 					child.border_box.h = new_cross
