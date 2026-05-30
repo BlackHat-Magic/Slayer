@@ -263,7 +263,6 @@ def packNodeLines(
 	node: Node,
 	parent_width: float,
 	parent_height: float,
-	window: Window,
 	getStringSize: Callable[[str, Direction], float],
 	getImageSize: Callable[[Any, Direction], float],
 	main_gap: float = 0.0,
@@ -285,7 +284,7 @@ def packNodeLines(
 
 	for child in node.children:
 		child_size = getNodeLineSize(child, direction, parent_width, parent_height,
-									 window, getStringSize, getImageSize)
+									 getStringSize, getImageSize)
 		child_margin = _main_margin(child, direction)
 		total = child_size + child_margin
 
@@ -305,7 +304,7 @@ def packNodeLines(
 
 	if node.style.wrap == Wrap.REVERSE:
 		lines.reverse()
-	elif node.style.direction in (Direction.ROW_REVERSE, Direction.COLUMN_REVERSE):
+	if node.style.direction in (Direction.ROW_REVERSE, Direction.COLUMN_REVERSE):
 		for i in range(len(lines)):
 			lines[i].reverse()
 
@@ -348,7 +347,6 @@ def _leaf_main_size(node: Node, direction: Direction, parent_w: float, parent_h:
 
 	bp = _bl(node) + _br(node) + _pl(node) + _pr(node) if direction in _ROW_DIRECTIONS \
 		else _bt(node) + _bb(node) + _pt(node) + _pb(node)
-	result = content_size + bp
 
 	if direction in _ROW_DIRECTIONS:
 		max_s = _to_px(node.style.max_width, parent_w, float("inf"))
@@ -357,6 +355,16 @@ def _leaf_main_size(node: Node, direction: Direction, parent_w: float, parent_h:
 		max_s = _to_px(node.style.max_height, parent_h, float("inf"))
 		min_s = _to_px(node.style.min_height, parent_h, 0.0)
 
+	if node.style.box_sizing == BoxSizing.CONTENT_BOX:
+		content_size = min(max(min_s, content_size), max_s)
+		return content_size + bp
+	if direction in _ROW_DIRECTIONS:
+		max_s = max_s + bp if node.style.max_width is not None else float("inf")
+		min_s = min_s + bp if node.style.min_width is not None else 0.0
+	else:
+		max_s = max_s + bp if node.style.max_height is not None else float("inf")
+		min_s = min_s + bp if node.style.min_height is not None else 0.0
+	result = content_size + bp
 	return min(max(min_s, result), max_s)
 
 def getNodeLineSize(
@@ -364,7 +372,6 @@ def getNodeLineSize(
 	direction: Direction,
 	parent_width: float,
 	parent_height: float,
-	window: Window,
 	getStringSize: Callable[[str, Direction], float],
 	getImageSize: Callable[[Any, Direction], float],
 ) -> float:
@@ -377,13 +384,13 @@ def getNodeLineSize(
 		if same_axis:
 			return sum(
 				getNodeLineSize(c, direction, parent_width, parent_height,
-								window, getStringSize, getImageSize)
+								getStringSize, getImageSize)
 				for c in node.children
 			)
 		else:
 			children_sizes = [
 				getNodeLineSize(c, direction, parent_width, parent_height,
-								window, getStringSize, getImageSize)
+								getStringSize, getImageSize)
 				for c in node.children
 			]
 			return max(children_sizes) if children_sizes else 0.0
@@ -395,21 +402,38 @@ def getNodeLineSize(
 		node_inner_w = _to_px(node.style.width, parent_width)
 	if node.style.max_width is not None:
 		node_inner_w = min(node_inner_w, _to_px(node.style.max_width, parent_width, float("inf")))
+	if node.style.min_width is not None:
+		node_inner_w = max(node_inner_w, _to_px(node.style.min_width, parent_width, 0.0))
 
 	if node.style.height is not None:
 		node_inner_h = _to_px(node.style.height, parent_height)
 	if node.style.max_height is not None:
 		node_inner_h = min(node_inner_h, _to_px(node.style.max_height, parent_height, float("inf")))
+	if node.style.min_height is not None:
+		node_inner_h = max(node_inner_h, _to_px(node.style.min_height, parent_height, 0.0))
+
+	if direction in _ROW_DIRECTIONS and node.style.width is not None:
+		raw = _to_px(node.style.width, parent_width)
+		if node.style.box_sizing == BoxSizing.CONTENT_BOX:
+			return raw + _bl(node) + _br(node) + _pl(node) + _pr(node)
+		return raw
+	if direction in _COL_DIRECTIONS and node.style.height is not None:
+		raw = _to_px(node.style.height, parent_height)
+		if node.style.box_sizing == BoxSizing.CONTENT_BOX:
+			return raw + _bt(node) + _bb(node) + _pt(node) + _pb(node)
+		return raw
 
 	content_w = node_inner_w - _bl(node) - _br(node) - _pl(node) - _pr(node)
 	content_h = node_inner_h - _bt(node) - _bb(node) - _pt(node) - _pb(node)
-	lines = packNodeLines(node, content_w, content_h, window, getStringSize, getImageSize)
+	is_row_wrapper = node.style.direction in _ROW_DIRECTIONS
+	wrapper_main_gap = _to_px(node.style.column_gap if is_row_wrapper else node.style.row_gap, content_w if is_row_wrapper else content_h)
+	lines = packNodeLines(node, content_w, content_h, getStringSize, getImageSize, wrapper_main_gap)
 	if not lines:
 		return 0.0
 
 	return max(
 		sum(
-			getNodeLineSize(c, direction, content_w, content_h, window, getStringSize, getImageSize)
+			getNodeLineSize(c, direction, content_w, content_h, getStringSize, getImageSize)
 			for c in line
 		)
 		for line in lines
@@ -462,7 +486,7 @@ def layoutNode(
 	main_gap = _to_px(node.style.column_gap if is_row else node.style.row_gap, inner_width if is_row else inner_height)
 	cross_gap = _to_px(node.style.row_gap if is_row else node.style.column_gap, inner_height if is_row else inner_width)
 
-	lines = packNodeLines(node, inner_width, inner_height, window, getStringSize, getImageSize, main_gap)
+	lines = packNodeLines(node, inner_width, inner_height, getStringSize, getImageSize, main_gap)
 
 	if node.isLeaf() or not lines:
 		_resolve_leaf_or_empty(node, resolved_w, resolved_h,
@@ -471,7 +495,7 @@ def layoutNode(
 
 	_process_lines(node, lines, direction, is_row,
 				   inner_width, inner_height, parent_width, parent_height,
-				   getStringSize, getImageSize, window)
+				   getStringSize, getImageSize)
 
 	_resolve_container_size(node, lines, direction, is_row,
 							inner_width, inner_height, parent_width, parent_height,
@@ -479,7 +503,7 @@ def layoutNode(
 
 	_justify_content(node, lines, direction, is_row, main_gap)
 
-	_align_items(node, lines, direction, is_row)
+	_align_items(node, lines, direction, is_row, parent_width, parent_height)
 
 	if len(lines) > 1:
 		_align_content(node, lines, direction, is_row, cross_gap)
@@ -489,8 +513,15 @@ def layoutNode(
 			continue
 		if child.border_box.x is None or child.border_box.y is None:
 			continue
-		cw = _ensure(child.content_box.w)
-		ch = _ensure(child.content_box.h)
+		if child.border_box.w is None or child.border_box.h is None:
+			continue
+		# NOTE: passes border_box.w as parent_width — percentage-width
+		# resolution uses this, not the CSS-spec-mandated content-box.
+		# Border-box is intentionally used here since the sizing pass
+		# already accounted for border/padding and using content-box
+		# would incorrectly shrink percentage-based children.
+		cw = _ensure(child.border_box.w)
+		ch = _ensure(child.border_box.h)
 		layoutNode(child, _ensure(child.border_box.x), _ensure(child.border_box.y),
 				   cw, ch, window, getStringSize, getImageSize)
 
@@ -560,10 +591,10 @@ def _resolve_leaf_or_empty(node: Node,
 def _process_lines(node: Node, lines: list[list[Node]], direction: Direction, is_row: bool,
 				   inner_width: float, inner_height: float,
 				   parent_width: float, parent_height: float,
-				   getStringSize, getImageSize, window: Window) -> None:
+				   getStringSize, getImageSize) -> None:
 	for line in lines:
 		_initialize_child_sizes(line, direction, is_row, inner_width, inner_height,
-								parent_width, parent_height, getStringSize, getImageSize, window)
+								parent_width, parent_height, getStringSize, getImageSize)
 		_apply_flex_grow_shrink(line, direction, is_row, inner_width, inner_height,
 								parent_width, parent_height)
 
@@ -571,17 +602,20 @@ def _process_lines(node: Node, lines: list[list[Node]], direction: Direction, is
 def _initialize_child_sizes(line: list[Node], direction: Direction, is_row: bool,
 							inner_w: float, inner_h: float,
 							parent_w: float, parent_h: float,
-							getStringSize, getImageSize, window: Window) -> None:
+							getStringSize, getImageSize) -> None:
 	for child in line:
 		main_size = getNodeLineSize(child, direction, inner_w, inner_h,
-									window, getStringSize, getImageSize)
+									getStringSize, getImageSize)
 
 		if is_row:
 			cross_dir = Direction.COLUMN
 		else:
 			cross_dir = Direction.ROW
+		# NOTE: cross_size call is redundant for wrapper nodes (their
+		# children don't meaningfully contribute to cross-axis sizing
+		# before grow/shrink). Kept for now — performance, not correctness.
 		cross_size = getNodeLineSize(child, cross_dir, inner_w, inner_h,
-									 window, getStringSize, getImageSize)
+									 getStringSize, getImageSize)
 
 		if is_row:
 			child.border_box.w = main_size
@@ -603,6 +637,9 @@ def _apply_flex_grow_shrink(line: list[Node], direction: Direction, is_row: bool
 							inner_width: float, inner_height: float,
 							parent_width: float, parent_height: float) -> None:
 	container_size = inner_width if is_row else inner_height
+	# NOTE: initial totals include children that may be at their
+	# max/min constraints — first iteration under-allocates, but the
+	# while-loop renormalizes in subsequent passes.
 	total_growth = sum(c.style.grow for c in line)
 	total_shrink = sum(c.style.shrink for c in line)
 	total_size = 0.0
@@ -638,6 +675,7 @@ def _recalc_total(line: list[Node], direction: Direction, is_row: bool) -> float
 def _grow_children(line: list[Node], direction: Direction, is_row: bool,
 				   free_space: float, total_growth: float,
 				   parent_width: float, parent_height: float) -> None:
+	# 0.01 epsilon stops infinite loops from floating-point rounding
 	_iterations = 0
 	while free_space > 0.01 and total_growth > 0.0 and _iterations < 100:
 		iter_space = free_space
@@ -688,6 +726,7 @@ def _grow_children(line: list[Node], direction: Direction, is_row: bool,
 def _shrink_children(line: list[Node], direction: Direction, is_row: bool,
 					 free_space: float, total_shrink: float,
 					 parent_width: float, parent_height: float) -> None:
+	# 0.01 epsilon stops infinite loops from floating-point rounding
 	_iterations = 0
 	while free_space < -0.01 and total_shrink > 0.0 and _iterations < 100:
 		iter_space = abs(free_space)
@@ -743,6 +782,9 @@ def _resolve_container_size(node: Node, lines: list[list[Node]], direction: Dire
 	main_axis_total = 0.0
 	cross_axis_total = 0.0
 
+	# NOTE: recomputes per-line cross sizes already known from
+	# _align_items. Benign — _align_content runs after _align_items
+	# and uses the same values; recomputation simplifies code flow.
 	for i, line in enumerate(lines):
 		line_main = 0.0
 		line_cross = 0.0
@@ -782,6 +824,9 @@ def _resolve_container_size(node: Node, lines: list[list[Node]], direction: Dire
 				content_w = min(max(min_w, raw), max_w) - border_left - border_right - padding_left - padding_right
 		elif node.style.wrap == Wrap.WRAP:
 			content_w = inner_width
+			max_w = _to_px(node.style.max_width, parent_width, float("inf"))
+			min_w = _to_px(node.style.min_width, parent_width, 0.0)
+			content_w = min(max(min_w, content_w), max_w)
 		else:
 			content_w = max(main_axis_total, inner_width)
 			max_w = _to_px(node.style.max_width, parent_width, float("inf"))
@@ -819,6 +864,9 @@ def _resolve_container_size(node: Node, lines: list[list[Node]], direction: Dire
 				content_h = min(max(min_h, raw), max_h) - border_top - border_bottom - padding_top - padding_bottom
 		elif node.style.wrap == Wrap.WRAP:
 			content_h = inner_height
+			max_h = _to_px(node.style.max_height, parent_height, float("inf"))
+			min_h = _to_px(node.style.min_height, parent_height, 0.0)
+			content_h = min(max(min_h, content_h), max_h)
 		else:
 			content_h = max(main_axis_total, inner_height)
 			max_h = _to_px(node.style.max_height, parent_height, float("inf"))
@@ -909,21 +957,23 @@ def _justify_offsets(justify: JustifyContent, remaining: float, count: int,
 	elif justify == JustifyContent.CENTER:
 		return 0.0, content_start + remaining / 2.0
 	elif justify == JustifyContent.BETWEEN:
-		if count > 1:
+		if count > 1 and remaining > 0:
 			return remaining / (count - 1), content_start
 		return 0.0, content_start
 	elif justify == JustifyContent.AROUND:
 		if remaining > 0:
 			half = remaining / count / 2.0
 			return remaining / count, content_start + half
-		return 0.0, content_start + remaining / 2.0
+		return 0.0, content_start
 	elif justify == JustifyContent.EVENLY:
-		space = remaining / (count + 1)
-		return space, content_start + space
+		if remaining > 0:
+			space = remaining / (count + 1)
+			return space, content_start + space
+		return 0.0, content_start
 	return 0.0, content_start
 
 
-def _align_items(node: Node, lines: list[list[Node]], direction: Direction, is_row: bool) -> None:
+def _align_items(node: Node, lines: list[list[Node]], direction: Direction, is_row: bool, parent_width: float, parent_height: float) -> None:
 	content_x = _ensure(node.content_box.x)
 	content_y = _ensure(node.content_box.y)
 	container_cross = _ensure(node.content_box.h) if is_row else _ensure(node.content_box.w)
@@ -934,19 +984,26 @@ def _align_items(node: Node, lines: list[list[Node]], direction: Direction, is_r
 			child_align = child.style.align_self if (child.style.align_self is not None and child.style.align_self != Align.AUTO) else align
 
 			if child_align == Align.STRETCH:
-				new_cross = container_cross - _cross_margin(child, direction)
-				if is_row:
-					child.border_box.h = new_cross
-					child.padding_box.h = new_cross - _bt(child) - _bb(child)
-					child.content_box.h = child.padding_box.h - _pt(child) - _pb(child)
-				else:
-					child.border_box.w = new_cross
-					child.padding_box.w = new_cross - _bl(child) - _br(child)
-					child.content_box.w = child.padding_box.w - _pl(child) - _pr(child)
+				has_explicit_cross = (is_row and child.style.height is not None) or (not is_row and child.style.width is not None)
+				if not has_explicit_cross:
+					new_cross = container_cross - _cross_margin(child, direction)
+					if is_row:
+						max_h = _to_px(child.style.max_height, parent_height, float("inf"))
+						min_h = _to_px(child.style.min_height, parent_height, 0.0)
+						new_cross = min(max(min_h, new_cross), max_h)
+						child.border_box.h = new_cross
+						child.padding_box.h = new_cross - _bt(child) - _bb(child)
+						child.content_box.h = child.padding_box.h - _pt(child) - _pb(child)
+					else:
+						max_w = _to_px(child.style.max_width, parent_width, float("inf"))
+						min_w = _to_px(child.style.min_width, parent_width, 0.0)
+						new_cross = min(max(min_w, new_cross), max_w)
+						child.border_box.w = new_cross
+						child.padding_box.w = new_cross - _bl(child) - _br(child)
+						child.content_box.w = child.padding_box.w - _pl(child) - _pr(child)
 
 		for child in line:
 			child_align = child.style.align_self if (child.style.align_self is not None and child.style.align_self != Align.AUTO) else align
-
 			if is_row:
 				child_h = _ensure(child.border_box.h) + _cross_margin(child, direction)
 				remaining = container_cross - child_h
@@ -968,11 +1025,12 @@ def _cross_pos(align: Align, remaining: float) -> float:
 		return remaining
 	elif align == Align.CENTER:
 		return remaining / 2.0
+	# NOTE: SPACE_BETWEEN / SPACE_AROUND / SPACE_EVENLY are valid enum
+	# values on align_self / align_items but silently fall through to
+	# START here — acceptable behaviour per CSS fallback rules.
 	elif align == Align.BASELINE:
-		return 0.0
-	else:
-		return 0.0
-
+		return 0.0  # stub
+	return 0.0
 
 def _align_content(node: Node, lines: list[list[Node]], direction: Direction,
 				   is_row: bool, base_gap: float) -> None:
@@ -999,6 +1057,9 @@ def _align_content(node: Node, lines: list[list[Node]], direction: Direction,
 		for i in range(n):
 			line_sizes[i] += extra_per_line
 			for child in lines[i]:
+				has_explicit_cross = (is_row and child.style.height is not None) or (not is_row and child.style.width is not None)
+				if has_explicit_cross:
+					continue
 				if is_row:
 					child.border_box.h = _ensure(child.border_box.h) + extra_per_line
 					child.padding_box.h = _ensure(child.padding_box.h) + extra_per_line
@@ -1042,9 +1103,6 @@ def _align_content(node: Node, lines: list[list[Node]], direction: Direction,
 		else:
 			gap = base_gap
 			offset = 0.0
-	else:
-		offset = 0.0
-		gap = base_gap
 
 	current_cross = offset
 	for i, line in enumerate(lines):
