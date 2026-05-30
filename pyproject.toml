@@ -4,12 +4,13 @@ version = "0.1.0"
 description = "Immediate-mode UI layout library"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = [
-    "pygame>=2.6.1",
-]
+dependencies = []
 
 [dependency-groups]
 dev = [
     "ruff>=0.15.8",
     "ty>=0.0.40",
+]
+demo = [
+    "pygame>=2.6.1",
 ]

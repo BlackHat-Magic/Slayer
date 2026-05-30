@@ -20,14 +20,23 @@ Slayer is a simple, immediate-mode UI library that aims to replicate the functio
 ### Software Stack / Technologies Used
 
 - Language: Python (initial implementation), Zig (final implementation), C (bindings planned), C++ (bindings planned)
-- Framework: Pygame (initial renderer), SDL3 (planned example renderer), SFML (may make renderer in the future), Raylib (planned example renderer)
+- Demos: Pygame (example renderer), SDL3 (planned), Raylib (planned), SFML (planned)
+
+> Pygame is **not** a library dependency — it's only needed to run the demo.
 
 ## Quickstart
 
-Install Slayer:
+Install Slayer (zero dependencies):
 
 ```sh
 uv add "git+https://github.com/BlackHat-Magic/Slayer"
+```
+
+To run the demo, install with the optional demo group:
+
+```sh
+uv add "git+https://github.com/BlackHat-Magic/Slayer" --group demo
+python examples/pygame_example.py
 ```
 
 Inside your business logic:
