@@ -16,9 +16,10 @@ class PygameRenderer:
         pygame.init()
         self.width = width
         self.height = height
-        self.screen = pygame.display.set_mode((width, height))
+        self.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
         pygame.display.set_caption(title)
         self.font = pygame.font.Font(None, 32)
+        self.small_font = pygame.font.Font(None, 18)
         self.clock = pygame.time.Clock()
         self.running = True
 
@@ -44,8 +45,17 @@ class PygameRenderer:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    self.running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.running = False
+                    elif event.key == pygame.K_f:
+                        pygame.display.toggle_fullscreen()
+                elif event.type == pygame.WINDOWRESIZED:
+                    self.width = event.x
+                    self.height = event.y
+                elif event.type == pygame.VIDEORESIZE:
+                    self.width = event.w
+                    self.height = event.h
 
             self.screen.fill((240, 240, 240))
 
@@ -71,20 +81,23 @@ def build_demo_tree():
         direction=Direction.ROW,
         justify_content=JustifyContent.START,
         align_items=Align.STRETCH,
-        width=M(Unit.PX, 790),
-        height=M(Unit.PX, 390),
+        width=M(Unit.PERCENT, 100),
+        height=M(Unit.PERCENT, 100),
         background_color=[0.2, 0.2, 0.3, 1.0],
         border_color=[0.4, 0.4, 0.5, 1.0],
         border=[M(Unit.PX, 5)] * 4,
         padding=[M(Unit.PX, 10)] * 4,
     ))
 
-    sidebar = Node(style=Style(
-        width=M(Unit.PX, 200),
+    sidebar = Node(content="Sidebar", style=Style(
+        width=M(Unit.PERCENT, 25),
+        min_width=M(Unit.PX, 120),
+        max_width=M(Unit.PX, 300),
         background_color=[0.15, 0.15, 0.25, 1.0],
         border_color=[0.3, 0.3, 0.4, 1.0],
         border=[M(Unit.PX, 2)] * 4,
         padding=[M(Unit.PX, 10)] * 4,
+        color=[0.7, 0.7, 0.8, 1.0],
     ))
     root.addChild(sidebar)
 
@@ -124,13 +137,13 @@ def build_demo_tree():
         wrap=Wrap.WRAP,
         row_gap=M(Unit.PX, 8),
         column_gap=M(Unit.PX, 8),
-        width=M(Unit.PERCENT, 100)
     ))
     main_area.addChild(body)
 
-    for i in range(3):
+    for i in range(8):
         body.addChild(Node(content=f"Card {i + 1}", style=Style(
-            width=M(Unit.PX, 150),
+            width=M(Unit.PX, 140),
+            min_width=M(Unit.PX, 100),
             background_color=[0.35, 0.45, 0.55, 1.0],
             border_color=[0.5, 0.6, 0.7, 1.0],
             border=[M(Unit.PX, 2)] * 4,
