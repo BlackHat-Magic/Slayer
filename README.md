@@ -22,8 +22,6 @@ Slayer is a simple UI library that aims to replicate the functionality of CSS's 
 - Language: Python (initial implementation), Zig (final implementation), C (bindings planned), C++ (bindings planned)
 - Demos: Pygame (example renderer), SDL3 (planned), Raylib (planned), SFML (planned)
 
-> Pygame is **not** a library dependency — it's only needed to run the demo.
-
 ## Quickstart
 
 Install Slayer (zero dependencies):
