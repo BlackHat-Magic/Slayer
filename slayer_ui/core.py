@@ -45,9 +45,10 @@ def _collect(node, commands: list):
 
 
 class UI:
-    def __init__(self, measure_text, measure_text_height=None):
+    def __init__(self, measure_text, measure_text_height=None, measure_baseline=None):
         self.measure_text = measure_text
         self.measure_text_height = measure_text_height
+        self.measure_baseline = measure_baseline
 
     def compute_layout(
         self, node, window_width=800, window_height=600
@@ -68,8 +69,8 @@ class UI:
             0,
             float(window.width),
             float(window.height),
-            window,
             getStringSize,
             getImageSize,
+            self.measure_baseline,
         )
         return collect_render_commands(node)
